@@ -13,6 +13,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -23,7 +24,6 @@ import com.arcgismaps.httpcore.authentication.ArcGISAuthenticationChallengeRespo
 import com.arcgismaps.httpcore.authentication.TokenCredential
 import com.arcgismaps.location.Location.SourceProperties.Values.POSITION_SOURCE_GNSS
 import com.arcgismaps.location.LocationDisplayAutoPanMode
-import com.example.indoorapp.R
 import com.example.indoorapp.databinding.FragmentMainBinding
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
@@ -74,6 +74,9 @@ class MainFragment : Fragment() {
     ): View {
         fragmentMainBinding = FragmentMainBinding.inflate(layoutInflater)
         lifecycle.addObserver(fragmentMainBinding.mapView)
+
+        fragmentMainBinding.lifecycleOwner = viewLifecycleOwner
+        fragmentMainBinding.viewModel = viewModel
 
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
