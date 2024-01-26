@@ -1,11 +1,21 @@
 package com.example.indoorapp
 
 import android.util.Log
+import androidx.lifecycle.MediatorLiveData
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.asLiveData
+import androidx.lifecycle.map
 import androidx.lifecycle.viewModelScope
 import com.arcgismaps.Guid
 import com.arcgismaps.LoadStatus
-import com.arcgismaps.data.*
+import com.arcgismaps.data.ArcGISFeatureTable
+import com.arcgismaps.data.FeatureTable
+import com.arcgismaps.data.Field
+import com.arcgismaps.data.GeodatabaseFeatureTable
+import com.arcgismaps.data.OrderBy
+import com.arcgismaps.data.QueryParameters
+import com.arcgismaps.data.ServiceFeatureTable
+import com.arcgismaps.data.SortOrder
 import com.arcgismaps.exceptions.ArcGISException
 import com.arcgismaps.location.IndoorsLocationDataSource
 import com.arcgismaps.location.Location
@@ -14,11 +24,16 @@ import com.arcgismaps.mapping.ArcGISMap
 import com.arcgismaps.mapping.PortalItem
 import com.arcgismaps.mapping.layers.FeatureLayer
 import com.arcgismaps.portal.Portal
-import com.example.indoorapp.R
-import kotlinx.coroutines.flow.*
+import com.example.indoorapp.ui.floorpicker.FloorPickerState
+import com.example.indoorapp.ui.floorpicker.FloorPickerViewModel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import com.arcgismaps.ArcGISEnvironment
-import com.arcgismaps.ApiKey
 
 
 class MainViewModel : ViewModel() {
@@ -30,6 +45,8 @@ class MainViewModel : ViewModel() {
 
     private val _locationDetailsState = MutableStateFlow<LocationDetailsState?>(null)
     val locationDetailsState: StateFlow<LocationDetailsState?> = _locationDetailsState.asStateFlow()
+
+    val floorPickerViewModel = FloorPickerViewModel(viewModelScope)
 
     fun connectToPortal() {
         viewModelScope.launch {
@@ -43,6 +60,7 @@ class MainViewModel : ViewModel() {
                     arcGisMap.load()
                         .onSuccess {
                             _uiState.update { currentUiState -> currentUiState.copy(map = arcGisMap) }
+                            floorPickerViewModel.agsMap = arcGisMap
                             // Load all necessary tables and start ILDS
                             loadMapDataAndStartIndoorsLocationDataSource(arcGisMap)
                         }
@@ -135,15 +153,18 @@ class MainViewModel : ViewModel() {
                 LocationDataSourceStatus.Starting -> {
                     handleILDSStatusUpdate(MapState.ILDS_STARTING)
                 }
+
                 LocationDataSourceStatus.Started -> {
                     handleILDSStatusUpdate(MapState.ILDS_STARTED)
                 }
+
                 LocationDataSourceStatus.FailedToStart -> {
                     handleILDSStatusUpdate(
                         MapState.ILDS_FAILED_TO_START,
                         R.string.error_ilds_failed_to_start
                     )
                 }
+
                 LocationDataSourceStatus.Stopped -> {
                     val error = indoorsLocationDataSource.error.value as? ArcGISException
                     Log.d("MainViewModel", "error: ${error?.additionalMessage}")
@@ -156,6 +177,7 @@ class MainViewModel : ViewModel() {
                     )
                     _locationDetailsState.update { currentState -> currentState?.copy(isVisible = false) }
                 }
+
                 else -> {}
             }
         }.launchIn(viewModelScope)
@@ -276,6 +298,57 @@ class MainViewModel : ViewModel() {
                 errorString = stringRes
             )
         }
+    }
+
+    // FloorPicker functions
+    fun onFloorPickerTapped() {
+        if (floorPickerViewModel.floors.value?.count() == 1) return
+
+        floorPickerViewModel.pickerState.tryEmit(
+            when (floorPickerViewModel.pickerState.value) {
+                FloorPickerState.HIDDEN -> FloorPickerState.HIDDEN
+                FloorPickerState.COLLAPSED -> FloorPickerState.EXPANDED
+                FloorPickerState.EXPANDED -> FloorPickerState.COLLAPSED
+            }
+        )
+    }
+
+    val isFloorPickerEnabled = MediatorLiveData<Boolean>().apply {
+        addSource(floorPickerViewModel.floors) {
+            value = it.isNotEmpty()
+        }
+    }
+
+    val isFloorPickerExpanded = MediatorLiveData<Boolean>().apply {
+        fun getIsFloorPickerExpanded(): Boolean {
+            val isExpanded = floorPickerViewModel.pickerState.value == FloorPickerState.EXPANDED
+            val isSingleFloor = floorPickerViewModel.floors.value?.count() == 1
+            return isExpanded && !isSingleFloor
+        }
+        addSource(floorPickerViewModel.pickerState.asLiveData()) {
+            value = getIsFloorPickerExpanded()
+        }
+        addSource(floorPickerViewModel.floors) {
+            value = getIsFloorPickerExpanded()
+        }
+    }
+
+    val isFloorPickerVisible = MediatorLiveData<Boolean>().apply {
+        fun getVisible(): Boolean {
+            if (floorPickerViewModel.closestFacilityId == null) {
+                return false
+            }
+            val isHidden = floorPickerViewModel.pickerState.value == FloorPickerState.HIDDEN
+            val isNotEmpty = floorPickerViewModel.floors.value?.isNotEmpty() ?: false
+            return isNotEmpty && !isHidden
+        }
+
+        addSource(floorPickerViewModel.floors) { value = getVisible() }
+        addSource(floorPickerViewModel.pickerState.asLiveData()) { value = getVisible() }
+    }
+
+    val selectedFloorText = floorPickerViewModel.currentFloor.asLiveData().map {
+        it?.shortName
     }
 }
 
