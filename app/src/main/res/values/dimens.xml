@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="margin_material_huge">48dp</dimen>
+    <dimen name="margin_material_big">32dp</dimen>
+    <dimen name="margin_material_medium">24dp</dimen>
+    <dimen name="margin_material_normal">16dp</dimen>
+    <dimen name="margin_material_small">12dp</dimen>
+    <dimen name="margin_material_tiny">8dp</dimen>
+    <dimen name="margin_material_micro">4dp</dimen>
+    <dimen name="separator">1dp</dimen>
+    <dimen name="divider_height">1dp</dimen>
+    <dimen name="text_normal">14sp</dimen>
+    <dimen name="text_medium">16sp</dimen>
+    <dimen name="text_big">18sp</dimen>
+    <dimen name="floor_picker_width">44dp</dimen>
+    <dimen name="max_icon_size">24dp</dimen>
+    <dimen name="floor_picker_corner_radius">8dp</dimen>
+</resources>

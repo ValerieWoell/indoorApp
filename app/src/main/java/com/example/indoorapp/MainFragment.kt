@@ -13,6 +13,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
@@ -23,9 +24,12 @@ import com.arcgismaps.httpcore.authentication.ArcGISAuthenticationChallengeRespo
 import com.arcgismaps.httpcore.authentication.TokenCredential
 import com.arcgismaps.location.Location.SourceProperties.Values.POSITION_SOURCE_GNSS
 import com.arcgismaps.location.LocationDisplayAutoPanMode
-import com.example.indoorapp.R
 import com.example.indoorapp.databinding.FragmentMainBinding
+import com.example.indoorapp.ui.floorpicker.FloorPickerItemViewModel
+import com.example.indoorapp.util.RecyclerViewAdapter
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 
 class MainFragment : Fragment() {
@@ -75,6 +79,9 @@ class MainFragment : Fragment() {
         fragmentMainBinding = FragmentMainBinding.inflate(layoutInflater)
         lifecycle.addObserver(fragmentMainBinding.mapView)
 
+        fragmentMainBinding.lifecycleOwner = viewLifecycleOwner
+        fragmentMainBinding.viewModel = viewModel
+
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.uiState.drop(1).collect { uiState ->
@@ -86,6 +93,26 @@ class MainFragment : Fragment() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.locationDetailsState.drop(1).collect { data ->
                     data?.let { updateLocationDetailsView(it) }
+                }
+            }
+        }
+
+        val adapter = FloorPickerAdapter(this)
+        fragmentMainBinding.floorPickerRecycler.adapter = adapter
+
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.floorPickerViewModel.floors.observe(
+                    viewLifecycleOwner
+                ) { floors ->
+                    val items = floors.map {
+                        FloorPickerItemViewModel(
+                            it,
+                            viewModel.floorPickerViewModel.currentFloor,
+                            viewModel.floorPickerViewModel.pickerState
+                        )
+                    }
+                    adapter.submitList(items)
                 }
             }
         }
@@ -136,7 +163,21 @@ class MainFragment : Fragment() {
         uiState.errorString?.let { showAlert(it) }
 
         when (uiState.mapState) {
-            MapState.INIT -> fragmentMainBinding.mapView.map = uiState.map
+            MapState.INIT -> {
+                fragmentMainBinding.mapView.apply {
+                    map = uiState.map
+                    viewpointChanged.onEach {
+                        viewModel.floorPickerViewModel.visibleExtent = visibleArea?.extent
+                        updateForClosestFacility()
+                    }.launchIn(lifecycleScope)
+                    navigationChanged.onEach { navigating ->
+                        if (!navigating) {
+                            updateForClosestFacility()
+                        }
+                    }.launchIn(lifecycleScope)
+                }
+            }
+
             MapState.MAP_LOADED -> {
                 uiState.indoorsLocationDataSource?.let { indoorsLocationDataSource ->
                     val locationDisplay = fragmentMainBinding.mapView.locationDisplay
@@ -144,9 +185,19 @@ class MainFragment : Fragment() {
                     locationDisplay.setAutoPanMode(LocationDisplayAutoPanMode.CompassNavigation)
                     viewModel.startIndoorsLocationDataSource()
                 }
+
+                viewModel.floorPickerViewModel.apply {
+                    visibleExtent = fragmentMainBinding.mapView.visibleArea?.extent
+                    updateForClosestFacility()
+                }
             }
+
             else -> {}
         }
+    }
+
+    private fun updateForClosestFacility() {
+        lifecycleScope.launch { viewModel.floorPickerViewModel.queryForClosestFacility() }
     }
 
     private fun updateLocationDetailsView(data: LocationDetailsState) {
@@ -171,5 +222,10 @@ class MainFragment : Fragment() {
 
         builder.setPositiveButton(android.R.string.ok, null)
         builder.show()
+    }
+
+    private inner class FloorPickerAdapter(lifecycleOwner: LifecycleOwner) :
+        RecyclerViewAdapter<FloorPickerItemViewModel>(lifecycleOwner, 1) {
+        override fun getItemViewType(position: Int): Int = R.layout.item_floor_picker_list_item
     }
 }
