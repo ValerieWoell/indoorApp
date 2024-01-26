@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <data>
+
+        <variable
+                name="item"
+                type="com.example.indoorapp.ui.floorpicker.FloorPickerItemViewModel" />
+
+    </data>
+
+    <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+            android:layout_width="44dp"
+            android:layout_height="wrap_content"
+            android:clickable="true"
+            android:clipChildren="true"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackground"
+            android:onClick="@{() -> item.onClick()}">
+
+        <TextView
+                android:id="@+id/floor_item_name_textView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:autoSizeTextType="uniform"
+                android:background="@{item.isSelected() ? @color/gray2 : @color/color_background}"
+                android:foreground="?attr/selectableItemBackground"
+                android:gravity="center"
+                android:maxLength="4"
+                android:maxLines="1"
+                android:paddingStart="@dimen/margin_material_micro"
+                android:paddingTop="@dimen/margin_material_normal"
+                android:paddingEnd="@dimen/margin_material_micro"
+                android:paddingBottom="@dimen/margin_material_normal"
+                android:text="@{item.floor.shortName}"
+                android:textColor="@{item.isSelected() ? @color/primary : @color/color_on_surface}"
+                android:textSize="14sp"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+</layout>
